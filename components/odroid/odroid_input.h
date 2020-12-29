@@ -29,10 +29,19 @@ typedef struct
     uint16_t bitmask;
 } odroid_gamepad_state_t;
 
+typedef enum
+{
+    ODROID_BATTERY_CHARGE_STATE_BATTERY_MISSING,
+    ODROID_BATTERY_CHARGE_STATE_CHARGING,
+    ODROID_BATTERY_CHARGE_STATE_DISCHARGING,
+    ODROID_BATTERY_CHARGE_STATE_FULL,
+} odroid_battery_charge_state_t;
+
 typedef struct
 {
 	int millivolts;
 	int percentage;
+    odroid_battery_charge_state_t state;
 } odroid_battery_state_t;
 
 void odroid_input_init();
