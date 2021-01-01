@@ -143,3 +143,6 @@
 #define C_GAINSBORO                    0xDEDB
 #define C_WHITE_SMOKE                  0xF7BE
 #define C_WHITE                        0xFFFF
+#define C_GW_RED                       0x6000
+#define C_GW_YELLOW                    0xD445
+#define C_GW_OPAQUE_YELLOW             0x5A02
