@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdarg.h>
-#include <rg_system.h>
+#include <odroid_system.h>
 
 #ifdef IS_LITTLE_ENDIAN
 #define LO 0
