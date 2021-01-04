@@ -521,7 +521,7 @@ int gb_state_load(const uint8_t *flash_ptr, size_t size)
 void loader_unload()
 {
 	sram_save();
-	if (ram.sband) free(ram.sbank);
+	if (ram.sbank) free(ram.sbank);
 
 	for (int i = 0; i < 512; i++) {
 		if (rom.bank[i]) {
