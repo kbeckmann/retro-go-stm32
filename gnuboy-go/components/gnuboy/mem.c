@@ -13,7 +13,7 @@
 
 struct mbc mbc;
 struct rom rom;
-struct ram ram __attribute__((section (".emulator_data")));
+struct ram ram;
 
 
 /*

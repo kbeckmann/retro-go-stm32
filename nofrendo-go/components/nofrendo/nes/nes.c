@@ -33,7 +33,7 @@
 
 #define NES_OVERDRAW (8)
 
-static uint8_t bitmap_data[2][sizeof(bitmap_t) + (sizeof(uint8 *) * NES_SCREEN_HEIGHT)]   __attribute__((section (".emulator_data")));;
+static uint8_t bitmap_data[2][sizeof(bitmap_t) + (sizeof(uint8 *) * NES_SCREEN_HEIGHT)];
 static bitmap_t *framebuffers[2];
 static nes_t nes;
 

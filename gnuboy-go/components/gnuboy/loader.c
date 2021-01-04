@@ -200,7 +200,7 @@ static svar_t svars[] =
 #ifdef GB_CACHE_ROM
 
 #define BANK_NUM  32
-uint8_t banks[BANK_NUM][BANK_SIZE] __attribute__((section (".emulator_data")));
+uint8_t banks[BANK_NUM][BANK_SIZE];
 
 #endif
 
@@ -235,7 +235,7 @@ int IRAM_ATTR rom_loadbank(short bank)
 }
 
 //uint8_t sram[8192];
-uint8_t sram[8192 * 16] __attribute__((section (".emulator_data")));
+uint8_t sram[8192 * 16];
 
 static int gb_rom_load()
 {
