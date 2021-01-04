@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "defs.h"
+#include "emu.h"
 #include "cpu.h"
 #include "mem.h"
 #include "regs.h"
@@ -552,7 +552,7 @@ static const byte operand_count[256] =
 
 int enable_disassembler = 0;
 
-void debug_disassemble(addr a, int c)
+void debug_disassemble(addr_t a, int c)
 {
 	static int i, j, k;
 	static byte code;

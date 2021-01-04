@@ -9,7 +9,7 @@
 #include "../components/gnuboy/sound.h"
 #include "../components/gnuboy/regs.h"
 #include "../components/gnuboy/rtc.h"
-#include "../components/gnuboy/defs.h"
+#include "../components/gnuboy/emu.h"
 
 #define APP_ID 20
 
@@ -23,6 +23,8 @@ static int16_t audioBuffer[AUDIO_BUFFER_LENGTH * 2];
 static odroid_video_frame_t update1 = {GB_WIDTH, GB_HEIGHT, GB_WIDTH * 2, 2, 0xFF, -1, NULL, NULL, 0, {}};
 static odroid_video_frame_t update2 = {GB_WIDTH, GB_HEIGHT, GB_WIDTH * 2, 2, 0xFF, -1, NULL, NULL, 0, {}};
 static odroid_video_frame_t *currentUpdate = &update1;
+
+static odroid_app_desc_t *app;
 
 static bool fullFrame = false;
 static uint skipFrames = 0;
@@ -56,16 +58,8 @@ static void netplay_callback(netplay_event_t event, void *arg)
 }
 
 
-static inline void screen_blit(void)
-{
-    odroid_video_frame_t *previousUpdate = (currentUpdate == &update1) ? &update2 : &update1;
 
-    fullFrame = odroid_display_queue_update(currentUpdate, previousUpdate) == SCREEN_UPDATE_FULL;
 
-    // swap buffers
-    currentUpdate = previousUpdate;
-    fb.ptr = currentUpdate->buffer;
-}
 
 
 static bool SaveState(char *pathName)
@@ -89,7 +83,6 @@ static bool LoadState(char *pathName)
     }
     return true;
 }
-
 
 static bool palette_update_cb(odroid_dialog_choice_t *option, odroid_dialog_event_t event)
 {
@@ -182,10 +175,23 @@ static bool advanced_settings_cb(odroid_dialog_choice_t *option, odroid_dialog_e
    return false;
 }
 
+static inline void screen_blit(void)
+{
+    odroid_video_frame_t *previousUpdate = (currentUpdate == &update1) ? &update2 : &update1;
+
+    fullFrame = odroid_display_queue_update(currentUpdate, previousUpdate) == SCREEN_UPDATE_FULL;
+
+    // swap buffers
+    currentUpdate = previousUpdate;
+    fb.ptr = currentUpdate->buffer;
+}
+
 void app_main(void)
 {
     odroid_system_init(APP_ID, AUDIO_SAMPLE_RATE);
     odroid_system_emu_init(&LoadState, &SaveState, &netplay_callback);
+
+    app = odroid_system_get_app();
 
     update1.buffer = rg_alloc(GB_WIDTH * GB_HEIGHT * 2, MEM_ANY);
     update2.buffer = rg_alloc(GB_WIDTH * GB_HEIGHT * 2, MEM_ANY);
@@ -193,7 +199,7 @@ void app_main(void)
     saveSRAM = odroid_settings_app_int32_get(NVS_KEY_SAVE_SRAM, 0);
 
     // Load ROM
-    loader_init(NULL);
+    loader_init(NULL);      /* Not updated since the G&W doesn't have a proper FS */
 
     // RTC
     memset(&rtc, 0, sizeof(rtc));
@@ -216,8 +222,6 @@ void app_main(void)
   	pcm.len = AUDIO_BUFFER_LENGTH * 2; // count of 16bit samples (x2 for stereo)
   	pcm.buf = (n16*)&audioBuffer;
   	pcm.pos = 0;
-
-    rg_app_desc_t *app = odroid_system_get_app();
 
     emu_init();
 

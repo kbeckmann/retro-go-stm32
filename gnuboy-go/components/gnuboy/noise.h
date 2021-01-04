@@ -2,7 +2,7 @@
 #define __NOISE_H__
 
 
-#include "defs.h"
+#include "emu.h"
 
 /*DRAM_ATTR*/ static const byte noise7[] =
 {

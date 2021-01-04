@@ -1,11 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+/* #include <malloc.h> */	/* I don't think this is needed */
 #include <time.h>
 #include <ctype.h>
 #include <assert.h>
 
-#include "defs.h"
+#include "emu.h"
 #include "regs.h"
 #include "mem.h"
 #include "hw.h"
@@ -514,29 +515,4 @@ int gb_state_load(const uint8_t *flash_ptr, size_t size)
 	mem_updatemap();
 
 	return 0;
-}
-
-
-
-void loader_unload()
-{
-	sram_save();
-	if (ram.sbank) free(ram.sbank);
-
-	for (int i = 0; i < 512; i++) {
-		if (rom.bank[i]) {
-			free(rom.bank[i]);
-			rom.bank[i] = NULL;
-		}
-	}
-
-	mbc.type = mbc.romsize = mbc.ramsize = mbc.batt = mbc.rtc = 0;
-	// ram.sbank = NULL;
-}
-
-
-void loader_init(char *s)
-{
-	gb_rom_load();
-	// sram_load();
 }
