@@ -286,7 +286,7 @@ label: op(b); break;
 #define COND_EXEC_INT(i, n) if (IF & IE & i) { DI; PUSH(PC); IF &= ~i; PC = 0x40+((n)<<3); clen = 5; goto _skip; }
 
 
-cpu_t cpu cpu;
+cpu_t cpu;
 
 
 /* A:

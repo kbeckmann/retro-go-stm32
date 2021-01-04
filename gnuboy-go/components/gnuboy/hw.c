@@ -56,7 +56,7 @@ void IRAM_ATTR hw_hdma_cmd(byte c)
 	}
 
 	/* Perform GDMA */
-	addr_t sa = ((addr)R_HDMA1 << 8) | (R_HDMA2&0xf0);
+	addr_t sa = ((addr_t)R_HDMA1 << 8) | (R_HDMA2&0xf0);
 	addr_t da = 0x8000 | ((int)(R_HDMA3&0x1f) << 8) | (R_HDMA4&0xf0);
 	size_t cnt = ((int)c)+1;
 	/* FIXME - this should use cpu time! */
