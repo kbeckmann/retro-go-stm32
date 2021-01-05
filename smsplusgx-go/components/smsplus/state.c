@@ -39,6 +39,17 @@ system_save_state: sizeof Z80=72
 system_save_state: sizeof SN76489_Context=92
 */
 
+#define _fread(buffer, size, count, ptr) do {        \
+   memcpy(buffer, ptr, size * count);                \
+   ptr += size * count;                              \
+} while(0)
+
+// TODO: Jeopardy: What is bounds checking
+#define _fwrite(buffer, size, count, ptr) do {       \
+   memcpy(ptr, buffer, size * count);                \
+   ptr += size * count;                              \
+} while(0)
+
 int system_save_state(void *mem)
 {
   int i;
@@ -49,22 +60,22 @@ int system_save_state(void *mem)
   printf("%s: sizeof SN76489_Context=%d\n", __func__, sizeof(SN76489_Context));
 
   /*** Save SMS Context ***/
-  fwrite(&sms, sizeof(sms), 1, mem);
+  _fwrite(&sms, sizeof(sms), 1, mem);
 
   /*** Save VDP state ***/
-  fwrite(&vdp, sizeof(vdp), 1, mem);
+  _fwrite(&vdp, sizeof(vdp), 1, mem);
 
   /*** Save cart info ***/
   for (i = 0; i < 4; i++)
   {
-    fwrite(&cart.fcr[i], 1, 1, mem);
+    _fwrite(&cart.fcr[i], 1, 1, mem);
   }
 
   /*** Save SRAM ***/
-  fwrite(&cart.sram[0], 0x8000, 1, mem);
+  _fwrite(&cart.sram[0], 0x8000, 1, mem);
 
   /*** Save Z80 Context ***/
-  fwrite(&Z80, sizeof(Z80), 1, mem);
+  _fwrite(&Z80, sizeof(Z80), 1, mem);
 
 #if 0
   /*** Save YM2413 ***/
@@ -73,7 +84,7 @@ int system_save_state(void *mem)
 #endif
 
   /*** Save SN76489 ***/
-  fwrite(SN76489_GetContextPtr(0), SN76489_GetContextSize(), 1, mem);
+  _fwrite(SN76489_GetContextPtr(0), SN76489_GetContextSize(), 1, mem);
 
   return 0;
 }
@@ -93,7 +104,7 @@ void system_load_state(void *mem)
 
   /*** Set SMS Context ***/
   sms_t sms_tmp;
-  fread(&sms_tmp, sizeof(sms_tmp), 1, mem);
+  _fread(&sms_tmp, sizeof(sms_tmp), 1, mem);
   if(sms.console != sms_tmp.console)
   {
       system_reset();
@@ -103,7 +114,7 @@ void system_load_state(void *mem)
   sms = sms_tmp;
 
   /*** Set vdp state ***/
-  fread(&vdp, sizeof(vdp), 1, mem);
+  _fread(&vdp, sizeof(vdp), 1, mem);
 
 
 
@@ -114,15 +125,15 @@ void system_load_state(void *mem)
   /*** Set cart info ***/
   for (i = 0; i < 4; i++)
   {
-    fread(&cart.fcr[i], 1, 1, mem);
+    _fread(&cart.fcr[i], 1, 1, mem);
   }
 
   /*** Set SRAM ***/
-  fread(&cart.sram[0], 0x8000, 1, mem);
+  _fread(&cart.sram[0], 0x8000, 1, mem);
 
   /*** Set Z80 Context ***/
   int (*irq_cb)(int) = Z80.irq_callback;
-  fread(&Z80, sizeof(Z80), 1, mem);
+  _fread(&Z80, sizeof(Z80), 1, mem);
   Z80.irq_callback = irq_cb;
 
 #if 0
@@ -140,7 +151,7 @@ void system_load_state(void *mem)
   float psg_dClock = psg->dClock;
 
   /*** Set SN76489 ***/
-  fread(SN76489_GetContextPtr(0), SN76489_GetContextSize(), 1, mem);
+  _fread(SN76489_GetContextPtr(0), SN76489_GetContextSize(), 1, mem);
 
   // Restore clock rate
   psg->Clock = psg_Clock;

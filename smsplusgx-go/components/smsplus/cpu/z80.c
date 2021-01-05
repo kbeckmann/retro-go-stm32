@@ -135,6 +135,13 @@
 #define LOG(x)
 #endif
 
+unsigned char *cpu_readmap[64];
+unsigned char *cpu_writemap[64];
+
+void (*cpu_writemem16)(int address, int data);
+void (*cpu_writeport16)(uint16 port, uint8 data);
+uint8 (*cpu_readport16)(uint16 port);
+
 int z80_cycle_count = 0;        /* running total of cycles executed */
 
 #define CF  0x01
@@ -2433,14 +2440,18 @@ ALWAYS_INLINE void take_interrupt(void)
 void z80_init(int index, int clock, const void *config, int (*irqcallback)(int))
 {
   int i, p;
+  static uint8 add_buf[2*256*256];
+  static uint8 sub_buf[2*256*256];
 
   if( !SZHVC_add || !SZHVC_sub )
   {
     int oldval, newval, val;
     UINT8 *padd, *padc, *psub, *psbc;
     /* allocate big flag arrays once */
-    SZHVC_add = (UINT8 *)malloc(2*256*256);
-    SZHVC_sub = (UINT8 *)malloc(2*256*256);
+    //SZHVC_add = (UINT8 *)malloc(2*256*256);
+    //SZHVC_sub = (UINT8 *)malloc(2*256*256);
+    SZHVC_add = add_buf;
+    SZHVC_sub = sub_buf;
     if( !SZHVC_add || !SZHVC_sub )
     {
       return;
@@ -2543,9 +2554,9 @@ void z80_reset(void)
 
 void z80_exit(void)
 {
-  if (SZHVC_add) free(SZHVC_add);
+  //if (SZHVC_add) free(SZHVC_add);
   SZHVC_add = NULL;
-  if (SZHVC_sub) free(SZHVC_sub);
+  //if (SZHVC_sub) free(SZHVC_sub);
   SZHVC_sub = NULL;
 }
 

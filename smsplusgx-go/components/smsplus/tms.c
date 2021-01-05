@@ -24,11 +24,11 @@
 
 int text_counter;               /* Text offset counter */
 
-static uint8 mc_lookup[16][256][8];    /* Expand BD, PG data into 8-bit pixels (MC) */
-static uint8 tms_lookup[16][256][2];   /* Expand BD, PG data into 8-bit pixels (G1,G2) */
-static uint8 tms_obj_lut[16*256];      /* Look up priority between SG and display pixels */
-static uint8 txt_lookup[256][2];       /* Expand BD, PG data into 8-bit pixels (TX) */
-static uint8 bp_expand[256][8];        /* Expand PG data into 8-bit pixels */
+static uint8 mc_lookup[16][256][8] __attribute__((section (".ahb")));    /* Expand BD, PG data into 8-bit pixels (MC) */
+static uint8 tms_lookup[16][256][2] __attribute__((section (".ahb")));   /* Expand BD, PG data into 8-bit pixels (G1,G2) */
+static uint8 tms_obj_lut[16*256] __attribute__((section (".ahb")));      /* Look up priority between SG and display pixels */
+static uint8 txt_lookup[256][2] __attribute__((section (".ahb")));       /* Expand BD, PG data into 8-bit pixels (TX) */
+static uint8 bp_expand[256][8] __attribute__((section (".ahb")));        /* Expand PG data into 8-bit pixels */
 
 static const uint8 diff_mask[]  = {0x07, 0x07, 0x0F, 0x0F};
 static const uint8 name_mask[]  = {0xFF, 0xFF, 0xFC, 0xFC};

@@ -25,6 +25,9 @@
 #ifndef _SOUND_H_
 #define _SOUND_H_
 
+#define snd sms_snd
+#define snd_t sms_snd_t
+
 enum {
   STREAM_PSG_L, /* PSG left channel */
   STREAM_PSG_R, /* PSG right channel */
@@ -62,7 +65,7 @@ void fmunit_detect_w(int data);
 void fmunit_write(int offset, int data);
 int sound_init(void);
 void sound_shutdown(void);
-void sound_reset(void);
+void sms_sound_reset(void);
 void sound_update(int line);
 void sound_mixer_callback(int16 **stream, int16 **output, int length);
 

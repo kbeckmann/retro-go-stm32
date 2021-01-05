@@ -168,7 +168,7 @@ void system_reset(void)
   pio_reset();
   vdp_reset();
   render_reset();
-  sound_reset();
+  sms_sound_reset();
 }
 
 void system_poweron(void)

@@ -170,7 +170,7 @@ void sound_shutdown(void)
 }
 
 
-void sound_reset(void)
+void sms_sound_reset(void)
 {
   if(!snd.enabled)
     return;
