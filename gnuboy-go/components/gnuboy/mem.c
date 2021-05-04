@@ -33,10 +33,10 @@ void IRAM_ATTR mem_updatemap()
 	mbc.rombank &= (mbc.romsize - 1);
 	mbc.rambank &= (mbc.ramsize - 1);
 
-	if (rom.bank[mbc.rombank] == NULL)
-	{
+	//if (rom.bank[mbc.rombank] == NULL)
+	//{
 		rom_loadbank(mbc.rombank);
-	}
+	//}
 
 	memset(mbc.rmap, 0, sizeof(mbc.rmap));
 	memset(mbc.wmap, 0, sizeof(mbc.wmap));
