@@ -213,7 +213,7 @@ uint8_t banks[BANK_NUM][BANK_SIZE];
 static bool rom_bank_cache_enabled;
 
 /* SRAM memory :  ROM bank cache */
-static unsigned char *GB_ROM_SRAM_CACHE;
+unsigned char *GB_ROM_SRAM_CACHE;
 
 /*LZ4 compressed ROM */
 static const unsigned char *GB_ROM_LZ4;
@@ -231,8 +231,11 @@ uint8_t bank_cache_size = 0;
 uint8_t rom_banks_number =0;
 
 /* return cache idx from bank
-if _NOT_IN_CACHE, the bank is not in cache */
-#define _NOT_IN_CACHE 255
+if _NOT_IN_CACHE, the bank is not in cache
+if _NOT_COMPRESSED, the bank is directly available in ROM
+*/
+#define _NOT_IN_CACHE   0x80
+#define _NOT_COMPRESSED 0x40
 static uint8_t bank_to_cache_idx[_MAX_GB_ROM_BANKS];
 
 /* offset of compressed bank (up to 256 banks)
@@ -245,16 +248,34 @@ uint32_t gb_rom_lz4_bank_offset[_MAX_GB_ROM_BANKS];
 if timestamp is 0, the bank is not in cache */
 static uint32_t cache_ts[_MAX_GB_ROM_BANK_IN_CACHE];
 
+/* cache score
+if score is 0, the bank is not in cache */
+// static int32_t cache_score[_MAX_GB_ROM_BANK_IN_CACHE];
+// #define SCORE_HIT   30
+// #define SCORE_LOAD  30
+// #define SCORE_DOWN  -5
+
+// #define SCORE_THRESHOLD  1
+
 /* offset of compressed bank (up to 256 banks)
-format : lz4_compressed_size + lz4_block 
+format : lz4_compressed_size + lz4_block
+If lz4_compressed_size MSB bit : lz4_block is the bank uncompressed
 if 0   : no bank */
 
-/* To enable cache trace: H:HIT F:FREE S:SWAP */
+/* To enable cache trace: D:DIRECT H:HIT F:FREE S:SWAP */
 #define _TRACE_GB_CACHE
 
 /* Function to load bank dynamically from ROM LZ4 compressed
 the bank0 is alwaye loaded @ cache idx=0 and not swappable with
 other banks */
+
+#ifdef _TRACE_GB_CACHE
+	static uint32_t swap_count=0;
+#endif
+
+extern void  unlz4(const void *aSource, void *aDestination);
+extern void unlz4_len(const void *aSource, void *aDestination, uint32_t aLength);
+
 static void
 rom_loadbank_cache(short bank)
 {
@@ -265,77 +286,152 @@ rom_loadbank_cache(short bank)
 	/* uncompress bank to cache_idx */
 	uint32_t lz4_compressed_size;
 
-	/* bank idx in the cache, skip 0 reserved for bank0*/
-	uint8_t cache_idx=1;
+	/* reclaimed bank idx in the cache */
+	uint8_t reclaimed_idx=0;
 
-	/* older bank, skip 0 reserved for bank0 */
-	uint8_t older_bank=1;
+	/* last requested idx in cache */
+	static uint8_t active_idx = 0;
+
+	/* reclaimed bank */
+	uint8_t reclaimed_bank=0;
 
 	#ifdef _TRACE_GB_CACHE
-		printf("load bank:%d %d\n",bank, bank_to_cache_idx[bank]);
+		printf("L:%02d %02d ",bank, bank_to_cache_idx[bank]);
 	#endif
 
-	/* THE BANK IS NOT IN THE CACHE */
-	if (bank_to_cache_idx[bank] == _NOT_IN_CACHE) {
+	/* THE BANK IS UNCOMPRESSED AND CAN BE READ DIRECTLY IN ROM */
+	if (bank_to_cache_idx[bank] & _NOT_COMPRESSED) {
 
-	/*  look for the older bank in cache, exclude cache_idx=0 reserved for bank0*/
-		for (int idx = 1; idx < bank_cache_size; idx++)
-			if (cache_ts[cache_idx] > cache_ts[idx]) cache_idx = idx;
+		OFFSET = gb_rom_lz4_bank_offset[bank] + LZ4_FRAME_SIZE;
 
-		/* force bank0 in cache idx 0 */
-		if (bank == 0) cache_idx=0;
-
-		/* look for free memory in cache (CACHE FREE) or
-		 reclaim the older bank and replace it the requested bank (CACHE SWAP) */
-		if ( cache_ts[cache_idx] != 0) {
-
-			/* look for the corresponding allocated bank, excluding bank0 */
-			for (int bank_idx=1; bank_idx < rom_banks_number; bank_idx++)
-					if (bank_to_cache_idx[bank_idx] == cache_idx) older_bank = bank_idx;
-
-			/* reclaim the older bank in cache */
-			bank_to_cache_idx[older_bank] = _NOT_IN_CACHE;
-			rom.bank[older_bank] = NULL;
+		/* set the bank address to the right bank address in cache */
+		rom.bank[bank] = (unsigned char *)&GB_ROM_LZ4[OFFSET];
 
 		#ifdef _TRACE_GB_CACHE
-			printf("S%02d>%02d @%02d TS=%ld",older_bank, bank, cache_idx, cache_ts[cache_idx]);
-		}else {
-			printf("F%03d %02d", bank, cache_idx);
+			printf("Direct\n");
 		#endif
+
+	/* THE BANK IS NOT IN THE CACHE AND IS COMPRESSED */
+	} else if (bank_to_cache_idx[bank] & _NOT_IN_CACHE) {
+
+		/* look for the older bank in cache as a candidate */
+		for (int idx = 0; idx < bank_cache_size; idx++)
+			if (cache_ts[reclaimed_idx] > cache_ts[idx]) reclaimed_idx = idx;
+
+		/* look for the lower score bank in cache as a candidate */
+		// for (int idx = 0; idx < bank_cache_size; idx++)
+		// 	if (cache_score[reclaimed_idx] <= cache_score[idx])
+		// 			if ( cache_score[idx] < SCORE_THRESHOLD ) reclaimed_idx = idx;
+
+		/* Check if the older bank is really obsolete compared to the previous request */
+	//	if (cache_ts[active_idx] -  cache_ts[reclaimed_idx] < 50 ) reclaimed_idx = active_idx;
+
+		/* look for the corresponding allocated bank */
+		for (int bank_idx=0; bank_idx < rom_banks_number; bank_idx++)
+			if (bank_to_cache_idx[bank_idx] == reclaimed_idx) reclaimed_bank = bank_idx;
+
+		/* reclaim the removed bank from the cache if necessary */
+		if ( bank_to_cache_idx[reclaimed_bank] <= bank_cache_size) {
+			bank_to_cache_idx[reclaimed_bank] 	= _NOT_IN_CACHE;
+			rom.bank[reclaimed_bank] 			= NULL;
 		}
 
-		/* allocate the request bank in cache */
-		bank_to_cache_idx[bank] = cache_idx;
+		/* allocate the requested bank in cache */
+		bank_to_cache_idx[bank] = reclaimed_idx;
 
 		#ifdef _TRACE_GB_CACHE
-			/* break under trace if we can't uncompress this bank */
-			assert(gb_rom_lz4_bank_offset[bank] != 0);
+			printf("S %03d @%02d TS=%ld\n",reclaimed_bank, reclaimed_idx, cache_ts[reclaimed_idx]);
+			swap_count++;
 		#endif
 
 		memcpy(&lz4_compressed_size, &GB_ROM_LZ4[gb_rom_lz4_bank_offset[bank]], sizeof lz4_compressed_size);
 
-		OFFSET = bank_to_cache_idx[bank] * BANK_SIZE;
+		OFFSET = reclaimed_idx * BANK_SIZE;
 
-		lz4_depack(&GB_ROM_LZ4[gb_rom_lz4_bank_offset[bank]+LZ4_FRAME_SIZE],&GB_ROM_SRAM_CACHE[OFFSET],lz4_compressed_size);
+		/* LZ4 C Version */
+		//lz4_depack(&GB_ROM_LZ4[gb_rom_lz4_bank_offset[bank]+LZ4_FRAME_SIZE],&GB_ROM_SRAM_CACHE[OFFSET],lz4_compressed_size);
 
-		#ifdef _TRACE_GB_CACHE
-		printf("LZ4 bnk=%02d cch=%02d\n", bank, cache_idx);
-		#endif
+		/* LZ4 ASM Version */
+		unlz4_len(&GB_ROM_LZ4[gb_rom_lz4_bank_offset[bank]+LZ4_FRAME_SIZE],&GB_ROM_SRAM_CACHE[OFFSET],lz4_compressed_size);
 
-	  /* HIT CASE: the bank is already in the cache */
+		/* set the bank address to the right bank address in cache */
+		rom.bank[bank] = (unsigned char *)&GB_ROM_SRAM_CACHE[OFFSET];
+
+		/* refresh timestamp and score*/
+		cache_ts[reclaimed_idx] = HAL_GetTick();
+		// cache_score[active_idx] = SCORE_LOAD;
+
+		/* update scores of idx */
+		// for (int idx = 0; idx < bank_cache_size; idx++)
+		// 	cache_score[active_idx] += SCORE_DOWN;
+
+		active_idx = reclaimed_idx;
+
+
+	/* HIT CASE: the bank is already in the cache */
+
 	} else {
-		OFFSET = bank_to_cache_idx[bank] * BANK_SIZE;
+
+		active_idx = bank_to_cache_idx[bank];
+
+		OFFSET = active_idx * BANK_SIZE;
+
+		/* set the bank address to the right bank address in cache */
+		rom.bank[bank] = (unsigned char *)&GB_ROM_SRAM_CACHE[OFFSET];
+
+		/* refresh timestamp and score */
+		cache_ts[active_idx] = HAL_GetTick();
+
+		/* update scores of idx */
+		// for (int idx = 0; idx < bank_cache_size; idx++)
+		// 	cache_score[active_idx] += SCORE_DOWN;
+
+		// cache_score[active_idx] += SCORE_HIT;
 
 		#ifdef _TRACE_GB_CACHE
 			printf("H bnk=%02d cch=%02d\n", bank, bank_to_cache_idx[bank]);
 		#endif
 	}
 
-	/* refresh timestamp */
-	cache_ts[bank_to_cache_idx[bank]] = HAL_GetTick();
+	#ifdef _TRACE_GB_CACHE
+	//just to break using BSOD
+	//	if (swap_count > 200) assert(0);
+	#endif
 
-	/* set the bank address to the right bank address in cache */
-	rom.bank[bank] = (unsigned char *)&GB_ROM_SRAM_CACHE[OFFSET];
+}
+
+/* function used to restore the SRAM cache memory
+when the cache memory was stolen temporary for another operation (like save_state) */
+
+void gb_loader_restore_cache() {
+
+	/* offset in memory cache of requested bank
+	OFFSET = bank * BANK_SIZE */
+	size_t OFFSET;
+
+	/* uncompress bank to cache_idx */
+	uint32_t lz4_compressed_size;
+
+	/* reclaimed bank idx in the cache */
+	uint8_t bank=0;
+
+	/* Refresh all cache memory parsing the cache inde x*/
+	for (int restored_idx = 0; restored_idx < bank_cache_size; restored_idx++) {
+
+		/* look for the corresponding allocated bank */
+		for (int bank_idx=0; bank_idx < rom_banks_number; bank_idx++)
+			if (bank_to_cache_idx[bank_idx] == restored_idx) bank = bank_idx;
+
+		memcpy(&lz4_compressed_size, &GB_ROM_LZ4[gb_rom_lz4_bank_offset[bank]], sizeof lz4_compressed_size);
+
+		OFFSET = restored_idx * BANK_SIZE;
+
+		/* C version */
+		//lz4_depack(&GB_ROM_LZ4[gb_rom_lz4_bank_offset[bank]+LZ4_FRAME_SIZE],&GB_ROM_SRAM_CACHE[OFFSET],lz4_compressed_size);
+
+		/* ASM version, limited to 64KB ?/§?§? */
+		unlz4_len(&GB_ROM_LZ4[gb_rom_lz4_bank_offset[bank]+LZ4_FRAME_SIZE],&GB_ROM_SRAM_CACHE[OFFSET],lz4_compressed_size);
+	}
 }
 
 // TODO: Revisit this later as memory might run out when loading
@@ -407,10 +503,9 @@ static void gb_rom_lz4_load(){
 		memset(bank_to_cache_idx, _NOT_IN_CACHE, sizeof bank_to_cache_idx);
 		memset(cache_ts, 0, sizeof cache_ts);
 		memset(gb_rom_lz4_bank_offset, 0, sizeof( gb_rom_lz4_bank_offset));
+		//memset(cache_score,SCORE_DOWN,sizeof cache_score);
 
 		/* LZ4 frame */
-
-
 		uint32_t header_size = LZ4_MAGIC_SIZE + LZ4_FLG_SIZE + LZ4_BD_SIZE;
 		uint32_t lz4_offset = header_size;
 		uint32_t lz4_compressed_size = 0;
@@ -441,10 +536,17 @@ static void gb_rom_lz4_load(){
 			/* check that the header information is correct */
 			assert( lz4_uncompressed_size == BANK_SIZE );
 
-			// useGB_ROM_SRAM_CACHE to check all comppresse bank using LZ4 depack */
-			lz4_result_size = lz4_depack(&GB_ROM_LZ4[lz4_offset],&GB_ROM_SRAM_CACHE[0],lz4_compressed_size);
 
-			//printf("%03d:%05ld @%07ld:%05ld\n",lz4_frame_idx,lz4_result_size, lz4_offset,lz4_compressed_size );
+			if ( (lz4_compressed_size & 0x80000000) != 0) {
+
+				lz4_compressed_size &= 0x7FFFFFFF;
+				lz4_result_size = lz4_compressed_size;
+				bank_to_cache_idx[lz4_frame_idx] = _NOT_COMPRESSED;
+
+			} else {
+				// use GB_ROM_SRAM_CACHE to check all compressed bank using LZ4 depack */
+				lz4_result_size = lz4_depack(&GB_ROM_LZ4[lz4_offset],&GB_ROM_SRAM_CACHE[0],lz4_compressed_size);
+			}
 
 			/* check that the decompressed bank size is correct */
 			assert ( BANK_SIZE == lz4_result_size );
@@ -456,11 +558,7 @@ static void gb_rom_lz4_load(){
 
 		rom_banks_number       = lz4_frame_idx;
 		rom_bank_cache_enabled = true;
-
-		/* force bank0 in cache idx=0
-		bank0 is not swappable!	 */
-
-		rom_loadbank(0);
+		printf("LZ4 ROM checked!\n");
 	}
 }
 
@@ -541,6 +639,7 @@ static int gb_rom_load()
 		preload = mbc.romsize - 8;
 	}
 
+	preload=1;
 	printf("loader: Preloading the first %d banks\n", preload);
 	for (int i = 1; i < preload; i++)
 	{
