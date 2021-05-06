@@ -15,7 +15,19 @@
 #include "sound.h"
 #include "main.h"
 
+#ifdef __linux__
+#define LINUX_EMU
+#endif
+
+#ifndef LINUX_EMU
 #include "gw_linker.h"
+#endif
+
+#ifdef LINUX_EMU
+const uint32_t _GB_ROM_UNPACK_BUFFER_SIZE=512000;
+static uint8_t  _GB_ROM_UNPACK_BUFFER[512000];
+#endif
+
 #include "lz4_depack.h"
 
 #include "rom_manager.h"
@@ -249,15 +261,17 @@ if timestamp is 0, the bank is not in cache */
 static uint32_t cache_ts[_MAX_GB_ROM_BANK_IN_CACHE];
 
 /* To enable cache trace: D:DIRECT H:HIT F:FREE S:SWAP */
-// #define _TRACE_GB_CACHE
+#define _TRACE_GB_CACHE
 
 #ifdef _TRACE_GB_CACHE
 	static uint32_t swap_count=0;
 #endif
 
 /* extern to LZ4 ASM function */
-extern void  unlz4(const void *aSource, void *aDestination);
-extern void unlz4_len(const void *aSource, void *aDestination, uint32_t aLength);
+#ifndef LINUX_EMU
+	//extern void  unlz4(const void *aSource, void *aDestination);
+	//extern void unlz4_len(const void *aSource, void *aDestination, uint32_t aLength);
+#endif
 
 /* Function to load bank dynamically from ROM LZ4 compressed
 the bank0 is always uncompressed */
@@ -278,10 +292,10 @@ rom_loadbank_cache(short bank)
 	static uint8_t active_idx = 0;
 
 	/* reclaimed bank */
-	short reclaimed_bank=1;
+	short reclaimed_bank=0;
 
 	#ifdef _TRACE_GB_CACHE
-		printf("L:%02d %02d ",bank, bank_to_cache_idx[bank]);
+		//printf("L:%03d %03d ",bank, bank_to_cache_idx[bank]);
 	#endif
 
 	/* THE BANK IS UNCOMPRESSED AND CAN BE READ DIRECTLY IN ROM */
@@ -293,7 +307,7 @@ rom_loadbank_cache(short bank)
 		rom.bank[bank] = (unsigned char *)&GB_ROM_LZ4[OFFSET];
 
 		#ifdef _TRACE_GB_CACHE
-			printf("Direct\n");
+			//printf("Direct\n");
 		#endif
 
 	/* THE BANK IS NOT IN THE CACHE AND IS COMPRESSED */
@@ -308,7 +322,7 @@ rom_loadbank_cache(short bank)
 			if (bank_to_cache_idx[bank_idx] == reclaimed_idx) reclaimed_bank = bank_idx;
 
 		/* reclaim the removed bank from the cache if necessary */
-		if ( bank_to_cache_idx[reclaimed_bank] <= bank_cache_size) {
+		if ( (bank_to_cache_idx[reclaimed_bank] <= bank_cache_size)  &  (reclaimed_bank !=0)) {
 			bank_to_cache_idx[reclaimed_bank] 	= _NOT_IN_CACHE;
 			rom.bank[reclaimed_bank] 			= NULL;
 
@@ -331,10 +345,12 @@ rom_loadbank_cache(short bank)
 		OFFSET = reclaimed_idx * BANK_SIZE;
 
 		/* LZ4 C Version */
-		//lz4_depack(&GB_ROM_LZ4[gb_rom_lz4_bank_offset[bank]+LZ4_FRAME_SIZE],&GB_ROM_SRAM_CACHE[OFFSET],lz4_compressed_size);
+		lz4_depack(&GB_ROM_LZ4[gb_rom_lz4_bank_offset[bank]+LZ4_FRAME_SIZE],&GB_ROM_SRAM_CACHE[OFFSET],lz4_compressed_size);
 
 		/* LZ4 ASM Version */
-		unlz4_len(&GB_ROM_LZ4[gb_rom_lz4_bank_offset[bank]+LZ4_FRAME_SIZE],&GB_ROM_SRAM_CACHE[OFFSET],lz4_compressed_size);
+		#ifndef LINUX_EMU
+		//unlz4_len(&GB_ROM_LZ4[gb_rom_lz4_bank_offset[bank]+LZ4_FRAME_SIZE],&GB_ROM_SRAM_CACHE[OFFSET],lz4_compressed_size);
+		#endif
 
 		/* set the bank address to the right bank address in cache */
 		rom.bank[bank] = (unsigned char *)&GB_ROM_SRAM_CACHE[OFFSET];
@@ -343,7 +359,6 @@ rom_loadbank_cache(short bank)
 		cache_ts[reclaimed_idx] = HAL_GetTick();
 
 		active_idx = reclaimed_idx;
-
 
 	/* HIT CASE: the bank is already in the cache */
 	} else {
@@ -359,7 +374,7 @@ rom_loadbank_cache(short bank)
 		cache_ts[active_idx] = HAL_GetTick();
 
 		#ifdef _TRACE_GB_CACHE
-			printf("H bnk=%02d cch=%02d\n", bank, bank_to_cache_idx[bank]);
+			//printf("H bnk=%02d cch=%02d\n", bank, bank_to_cache_idx[bank]);
 		#endif
 	}
 
@@ -404,10 +419,12 @@ void gb_loader_restore_cache() {
 			OFFSET = restored_idx * BANK_SIZE;
 
 			/* C version */
-			//lz4_depack(&GB_ROM_LZ4[gb_rom_lz4_bank_offset[bank]+LZ4_FRAME_SIZE],&GB_ROM_SRAM_CACHE[OFFSET],lz4_compressed_size);
+			lz4_depack(&GB_ROM_LZ4[gb_rom_lz4_bank_offset[bank]+LZ4_FRAME_SIZE],&GB_ROM_SRAM_CACHE[OFFSET],lz4_compressed_size);
 
-			/* ASM version, limited to 64KB ?/§?§? */
-			unlz4_len(&GB_ROM_LZ4[gb_rom_lz4_bank_offset[bank]+LZ4_FRAME_SIZE],&GB_ROM_SRAM_CACHE[OFFSET],lz4_compressed_size);
+			/* ASM version, limited to 64KB ?? */
+			#ifndef LINUX_EMU
+			//unlz4_len(&GB_ROM_LZ4[gb_rom_lz4_bank_offset[bank]+LZ4_FRAME_SIZE],&GB_ROM_SRAM_CACHE[OFFSET],lz4_compressed_size);
+			#endif
 		}
 	}
 }
@@ -468,9 +485,14 @@ static void gb_rom_lz4_load(){
 
 		bank_cache_size = available_size / BANK_SIZE;
 
-		if (bank_cache_size > _MAX_GB_ROM_BANK_IN_CACHE) bank_cache_size = _MAX_GB_ROM_BANK_IN_CACHE;
+		/* Under Linux emulation, Force rhe cache size to match the embedded target */
+		#ifdef LINUX_EMU
+			bank_cache_size=26;
+		#endif
 
-		printf("SRAM cache size : %ld banks\n", available_size / BANK_SIZE);
+		if (bank_cache_size > _MAX_GB_ROM_BANK_IN_CACHE) bank_cache_size = _MAX_GB_ROM_BANK_IN_CACHE-1;
+
+		printf("SRAM cache size : %ld banks\n", bank_cache_size);
 
 		/* parse LZ4 ROM to determine:
 		- number of banks (16KB trunks)
@@ -512,7 +534,6 @@ static void gb_rom_lz4_load(){
 
 			/* check that the header information is correct */
 			assert( lz4_uncompressed_size == BANK_SIZE );
-
 
 			if ( (lz4_compressed_size & 0x80000000) != 0) {
 
