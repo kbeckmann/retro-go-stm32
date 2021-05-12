@@ -344,6 +344,9 @@ rom_loadbank_cache(short bank)
 
 		OFFSET = reclaimed_idx * BANK_SIZE;
 
+		/*watchdog */
+		wdog_refresh();
+
 		/* LZ4 C Version */
 		lz4_depack(&GB_ROM_LZ4[gb_rom_lz4_bank_offset[bank]+LZ4_FRAME_SIZE],&GB_ROM_SRAM_CACHE[OFFSET],lz4_compressed_size);
 
@@ -417,6 +420,9 @@ void gb_loader_restore_cache() {
 			memcpy(&lz4_compressed_size, &GB_ROM_LZ4[gb_rom_lz4_bank_offset[bank]], sizeof lz4_compressed_size);
 
 			OFFSET = restored_idx * BANK_SIZE;
+
+			/*watchdog */
+			wdog_refresh();
 
 			/* C version */
 			lz4_depack(&GB_ROM_LZ4[gb_rom_lz4_bank_offset[bank]+LZ4_FRAME_SIZE],&GB_ROM_SRAM_CACHE[OFFSET],lz4_compressed_size);
@@ -542,6 +548,10 @@ static void gb_rom_lz4_load(){
 				bank_to_cache_idx[lz4_frame_idx] = _NOT_COMPRESSED;
 
 			} else {
+
+				/*watchdog */
+				wdog_refresh();
+
 				// use GB_ROM_SRAM_CACHE to check all compressed bank using LZ4 depack */
 				lz4_result_size = lz4_depack(&GB_ROM_LZ4[lz4_offset],&GB_ROM_SRAM_CACHE[0],lz4_compressed_size);
 			}
