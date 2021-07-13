@@ -41,6 +41,12 @@ void odroid_settings_StartupFile_set(void *value);
 uint16_t odroid_settings_MainMenuTimeoutS_get(void);
 void odroid_settings_MainMenuTimeoutS_set(uint16_t value);
 
+uint16_t odroid_settings_MainMenuSelectedTab_get(void);
+void odroid_settings_MainMenuSelectedTab_set(uint16_t value);
+
+uint16_t odroid_settings_MainMenuCursor_get(void);
+void odroid_settings_MainMenuCursor_set(uint16_t value);
+
 ODROID_START_ACTION odroid_settings_StartAction_get();
 void odroid_settings_StartAction_set(ODROID_START_ACTION value);
 
